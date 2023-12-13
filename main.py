@@ -1,7 +1,10 @@
 import os
-from flask import Flask, render_template
+from flask import Flask, render_template, request
 import requests
+import smtplib
 
+PASSWORD = os.getenv("PASSWORD")
+EMAIL = os.getenv("EMAIL")
 
 app = Flask(__name__)
 API_URL = os.getenv('API_URL')
@@ -22,9 +25,23 @@ def about_page():
     return render_template("about.html")
 
 
-@app.route("/contact")
+@app.route("/contact", methods=["GET", "POST"])
 def contact_page():
-    return render_template("contact.html")
+    if request.method == "POST":
+        data = request.form
+        msg = ""
+        for key, value in data.items():
+            msg += f"{key.title()}: {value}\n"
+        with smtplib.SMTP("smtp.gmail.com", port=587) as connection:
+            connection.starttls()
+            connection.login(EMAIL, PASSWORD)
+            connection.sendmail(
+                from_addr=EMAIL,
+                to_addrs=EMAIL,
+                msg=f"Subject:New message!\n\n{msg}".encode('utf-8')
+            )
+        return render_template("contact.html", request="POST")
+    return render_template("contact.html", request="GET")
 
 
 @app.route("/post/<int:post_id>")
