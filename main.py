@@ -1,6 +1,6 @@
 import os
 import smtplib
-from datetime import date
+from datetime import date, datetime
 
 import bleach
 from flask import Flask, render_template, request, redirect, url_for, flash, abort
@@ -33,6 +33,8 @@ db.init_app(app)
 # INIT CKEDITOR
 app.config['CKEDITOR_PKG_TYPE'] = 'full'
 ckeditor = CKEditor(app)
+
+year = str(datetime.now().year)
 
 
 # CONFIGURE TABLE
@@ -115,8 +117,8 @@ def register_user():
         db.session.add(new_user)
         db.session.commit()
         login_user(new_user)
-        return redirect(url_for('get_all_posts'))
-    return render_template('register.html', form=form)
+        return redirect(url_for('get_all_posts', year=year))
+    return render_template('register.html', form=form, year=year)
 
 
 @app.route("/login", methods=["GET", "POST"])
@@ -126,25 +128,25 @@ def login():
         user = db.session.execute(db.select(User).where(User.email == form.email.data)).scalar()
         if not user:
             flash("There is no user registered with that email.")
-            return render_template('login.html', form=form)
+            return render_template('login.html', form=form, year=year)
         if check_password_hash(user.password, form.password.data):
             login_user(user)
-            return redirect(url_for('get_all_posts'))
+            return redirect(url_for('get_all_posts', year=year))
         flash("Password is wrong, try again.")
-        return render_template('login.html', form=form)
-    return render_template('login.html', form=form)
+        return render_template('login.html', form=form, year=year)
+    return render_template('login.html', form=form, year=year)
 
 
 @app.route("/logout")
 def logout():
     logout_user()
-    return redirect(url_for('get_all_posts'))
+    return redirect(url_for('get_all_posts', year=year))
 
 
 @app.route("/")
 def get_all_posts():
     posts_data = db.session.execute(db.select(BlogPost)).scalars().all()
-    return render_template("index.html", posts=posts_data)
+    return render_template("index.html", posts=posts_data, year=year)
 
 
 @app.route("/post/<int:post_id>", methods=["GET", "POST"])
@@ -155,7 +157,7 @@ def get_post(post_id):
     if form.validate_on_submit():
         if not current_user.is_authenticated:
             flash("Log in to comment.")
-            return redirect(url_for('login'))
+            return redirect(url_for('login', year=year))
         new_comment = Comment(
             body=strip_invalid_html(form.body.data),
             author=current_user,
@@ -163,8 +165,8 @@ def get_post(post_id):
         )
         db.session.add(new_comment)
         db.session.commit()
-        return render_template('post.html', post=post, form=form)
-    return render_template('post.html', post=post, form=form)
+        return render_template('post.html', post=post, form=form, year=year)
+    return render_template('post.html', post=post, form=form, year=year)
 
 
 @app.route("/new-post", methods=["GET", "POST"])
@@ -181,8 +183,8 @@ def add_post():
         new_post = BlogPost(**data)
         db.session.add(new_post)
         db.session.commit()
-        return redirect(url_for('get_all_posts'))
-    return render_template('make-post.html', form=form)
+        return redirect(url_for('get_all_posts', year=year))
+    return render_template('make-post.html', form=form, year=year)
 
 
 @app.route("/edit-post/<int:post_id>", methods=["GET", "POST"])
@@ -193,8 +195,8 @@ def edit_post(post_id):
     if form.validate_on_submit():
         form.populate_obj(post)
         db.session.commit()
-        return redirect(url_for('get_post', post_id=post_id))
-    return render_template('make-post.html', form=form, is_edit=True)
+        return redirect(url_for('get_post', post_id=post_id, year=year))
+    return render_template('make-post.html', form=form, is_edit=True, year=year)
 
 
 @app.route("/delete/<int:post_id>")
@@ -203,12 +205,12 @@ def delete_post(post_id):
     post = db.get_or_404(BlogPost, post_id)
     db.session.delete(post)
     db.session.commit()
-    return redirect(url_for('get_all_posts'))
+    return redirect(url_for('get_all_posts', year=year))
 
 
 @app.route("/about")
 def about():
-    return render_template("about.html")
+    return render_template("about.html", year=year)
 
 
 @app.route("/contact", methods=["GET", "POST"])
@@ -226,8 +228,8 @@ def contact():
                 to_addrs=EMAIL,
                 msg=f"Subject:New message!\n\n{msg}".encode('utf-8')
             )
-        return render_template("contact.html", request="POST")
-    return render_template("contact.html", request="GET")
+        return render_template("contact.html", request="POST", year=year)
+    return render_template("contact.html", request="GET", year=year)
 
 
 # strips invalid tags/attributes
