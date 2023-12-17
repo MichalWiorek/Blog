@@ -69,11 +69,8 @@ def contact_page():
 
 @app.route("/post/<int:post_id>")
 def post_page(post_id):
-    # post = db.session.execute(db.select(BlogPost).where(BlogPost.id == post_id)).scalar()
     post = db.get_or_404(BlogPost, post_id)
-    if post:
-        return render_template('post.html', post=post)
-    return redirect(url_for('home_page'))
+    return render_template('post.html', post=post)
 
 
 if __name__ == "__main__":
