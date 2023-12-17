@@ -101,7 +101,7 @@ def add_post():
         new_post = BlogPost(**data)
         db.session.add(new_post)
         db.session.commit()
-        return redirect(url_for('home_page'))
+        return redirect(url_for('get_all_posts'))
     return render_template('make-post.html', form=form, h1_text=h1_text)
 
 
@@ -113,7 +113,7 @@ def edit_post(post_id):
     if form.validate_on_submit():
         form.populate_obj(post)
         db.session.commit()
-        return redirect(url_for('post_page', post_id=post_id))
+        return redirect(url_for('get_post', post_id=post_id))
     return render_template('make-post.html', form=form, h1_text=h1_text)
 
 
@@ -122,7 +122,7 @@ def delete_post(post_id):
     post = db.get_or_404(BlogPost, post_id)
     db.session.delete(post)
     db.session.commit()
-    return redirect(url_for('home_page'))
+    return redirect(url_for('get_all_posts'))
 
 
 # strips invalid tags/attributes
