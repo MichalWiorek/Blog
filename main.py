@@ -10,8 +10,9 @@ from flask_login import LoginManager, login_user, logout_user, UserMixin, curren
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
+from flask_gravatar import Gravatar
 
-from forms import PostForm, RegisterForm, LoginForm
+from forms import PostForm, RegisterForm, LoginForm, CommentForm
 
 PASSWORD = os.getenv("PASSWORD")
 EMAIL = os.getenv("EMAIL")
@@ -45,6 +46,7 @@ class BlogPost(db.Model):
     author = db.relationship("User", back_populates="posts")
     author_id = db.Column(db.Integer, db.ForeignKey("users.id"))
     img_url = db.Column(db.String(250), nullable=False)
+    comments = db.relationship("Comment", back_populates="post")
 
 
 class User(db.Model, UserMixin):
@@ -54,10 +56,31 @@ class User(db.Model, UserMixin):
     email = db.Column(db.String(250), unique=True, nullable=False)
     password = db.Column(db.String(25), nullable=False)
     posts = db.relationship("BlogPost", back_populates="author")
+    comments = db.relationship("Comment", back_populates="author")
+
+
+class Comment(db.Model):
+    __tablename__ = "comments"
+    id = db.Column(db.Integer, primary_key=True)
+    body = db.Column(db.Text, nullable=False)
+    author_id = db.Column(db.Integer, db.ForeignKey("users.id"))
+    author = db.relationship("User", back_populates="comments")
+    post_id = db.Column(db.Integer, db.ForeignKey("blog_posts.id"))
+    post = db.relationship("BlogPost", back_populates="comments")
 
 
 with app.app_context():
     db.create_all()
+
+
+gravatar = Gravatar(app,
+                    size=100,
+                    rating='g',
+                    default='robohash',
+                    force_default=False,
+                    force_lower=False,
+                    use_ssl=False,
+                    base_url=None)
 
 
 @login_manager.user_loader
@@ -124,10 +147,24 @@ def get_all_posts():
     return render_template("index.html", posts=posts_data)
 
 
-@app.route("/post/<int:post_id>")
+@app.route("/post/<int:post_id>", methods=["GET", "POST"])
 def get_post(post_id):
     post = db.get_or_404(BlogPost, post_id)
-    return render_template('post.html', post=post)
+    form = CommentForm()
+    comments = db.session.execute(db.select(Comment).where(Comment.post_id==post_id))
+    if form.validate_on_submit():
+        if not current_user.is_authenticated:
+            flash("Log in to comment.")
+            return redirect(url_for('login'))
+        new_comment = Comment(
+            body=strip_invalid_html(form.body.data),
+            author=current_user,
+            post=post
+        )
+        db.session.add(new_comment)
+        db.session.commit()
+        return render_template('post.html', post=post, form=form)
+    return render_template('post.html', post=post, form=form)
 
 
 @app.route("/new-post", methods=["GET", "POST"])
