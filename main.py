@@ -1,19 +1,22 @@
 import os
 import smtplib
+from datetime import date
 
+import bleach
 from flask import Flask, render_template, request, redirect, url_for
+from flask_bootstrap import Bootstrap5
 from flask_ckeditor import CKEditor, CKEditorField
 from flask_sqlalchemy import SQLAlchemy
 from flask_wtf import FlaskForm
 from wtforms import StringField, SubmitField
 from wtforms.validators import DataRequired, URL
 
-
 PASSWORD = os.getenv("PASSWORD")
 EMAIL = os.getenv("EMAIL")
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv("SECRET_KEY")
+Bootstrap5(app)
 
 # CONNECTION TO DB
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URI', 'sqlite:///posts.db')
@@ -83,6 +86,45 @@ def contact_page():
 def post_page(post_id):
     post = db.get_or_404(BlogPost, post_id)
     return render_template('post.html', post=post)
+
+
+@app.route("/new-post", methods=["GET", "POST"])
+def add_post():
+    h1_text = "Create Post"
+    form = PostForm()
+    if form.validate_on_submit():
+        data = form.data
+        data.pop("submit_button", None)
+        data.pop("csrf_token", None)
+        data["date"] = date.today()
+        data["body"] = strip_invalid_html(data["body"])
+        new_post = BlogPost(**data)
+        db.session.add(new_post)
+        db.session.commit()
+        return redirect(url_for('home_page'))
+    return render_template('make-post.html', form=form, h1_text=h1_text)
+
+
+# strips invalid tags/attributes
+def strip_invalid_html(content):
+    allowed_tags = ['a', 'abbr', 'acronym', 'address', 'b', 'br', 'div', 'dl', 'dt',
+                    'em', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hr', 'i', 'img',
+                    'li', 'ol', 'p', 'pre', 'q', 's', 'small', 'strike',
+                    'span', 'sub', 'sup', 'table', 'tbody', 'td', 'tfoot', 'th',
+                    'thead', 'tr', 'tt', 'u', 'ul']
+
+    allowed_attrs = {
+        'a': ['href', 'target', 'title'],
+        'img': ['src', 'alt', 'width', 'height'],
+    }
+
+    cleaned = bleach.clean(content,
+                           tags=allowed_tags,
+                           attributes=allowed_attrs,
+                           strip=True)
+
+    return cleaned
+
 
 if __name__ == "__main__":
     app.run(debug=True)
