@@ -117,6 +117,14 @@ def edit_post(post_id):
     return render_template('make-post.html', form=form, h1_text=h1_text)
 
 
+@app.route("/delete/<int:post_id>")
+def delete_post(post_id):
+    post = db.get_or_404(BlogPost, post_id)
+    db.session.delete(post)
+    db.session.commit()
+    return redirect(url_for('home_page'))
+
+
 # strips invalid tags/attributes
 def strip_invalid_html(content):
     allowed_tags = ['a', 'abbr', 'acronym', 'address', 'b', 'br', 'div', 'dl', 'dt',
