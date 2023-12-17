@@ -2,3 +2,4 @@ Flask==2.3.2
 WTForms==3.0.1
 bleach==6.1.0
 email-validator==2.1.0.post1
+werkzeug==3.0.1

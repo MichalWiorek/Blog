@@ -8,6 +8,8 @@ from flask_bootstrap import Bootstrap5
 from flask_ckeditor import CKEditor
 from flask_sqlalchemy import SQLAlchemy
 from forms import PostForm, RegisterForm
+from werkzeug.security import generate_password_hash, check_password_hash
+
 
 PASSWORD = os.getenv("PASSWORD")
 EMAIL = os.getenv("EMAIL")
@@ -37,38 +39,36 @@ class BlogPost(db.Model):
     img_url = db.Column(db.String(250), nullable=False)
 
 
+class User(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(250), nullable=False)
+    email = db.Column(db.String(250), unique=True, nullable=False)
+    password = db.Column(db.String(25), nullable=False)
+
+
 with app.app_context():
     db.create_all()
+
+
+@app.route("/register", methods=["GET", "POST"])
+def register_user():
+    form = RegisterForm()
+    if form.validate_on_submit():
+        data = form.data
+        data.pop("submit_button", None)
+        data.pop("csrf_token", None)
+        data["password"] = generate_password_hash(data["password"])
+        new_user = User(**data)
+        db.session.add(new_user)
+        db.session.commit()
+        return redirect(url_for('get_all_posts'))
+    return render_template('register.html', form=form)
 
 
 @app.route("/")
 def get_all_posts():
     posts_data = db.session.execute(db.select(BlogPost)).scalars().all()
     return render_template("index.html", posts=posts_data)
-
-
-@app.route("/about")
-def about():
-    return render_template("about.html")
-
-
-@app.route("/contact", methods=["GET", "POST"])
-def contact():
-    if request.method == "POST":
-        data = request.form
-        msg = ""
-        for key, value in data.items():
-            msg += f"{key.title()}: {value}\n"
-        with smtplib.SMTP("smtp.gmail.com", port=587) as connection:
-            connection.starttls()
-            connection.login(EMAIL, PASSWORD)
-            connection.sendmail(
-                from_addr=EMAIL,
-                to_addrs=EMAIL,
-                msg=f"Subject:New message!\n\n{msg}".encode('utf-8')
-            )
-        return render_template("contact.html", request="POST")
-    return render_template("contact.html", request="GET")
 
 
 @app.route("/post/<int:post_id>")
@@ -85,7 +85,7 @@ def add_post():
         data = form.data
         data.pop("submit_button", None)
         data.pop("csrf_token", None)
-        data["date"] = date.today().strftime("%b %d, %Y")
+        data["date"] = date.today().strftime("%B %d, %Y")
         data["body"] = strip_invalid_html(data["body"])
         new_post = BlogPost(**data)
         db.session.add(new_post)
@@ -112,6 +112,30 @@ def delete_post(post_id):
     db.session.delete(post)
     db.session.commit()
     return redirect(url_for('get_all_posts'))
+
+
+@app.route("/about")
+def about():
+    return render_template("about.html")
+
+
+@app.route("/contact", methods=["GET", "POST"])
+def contact():
+    if request.method == "POST":
+        data = request.form
+        msg = ""
+        for key, value in data.items():
+            msg += f"{key.title()}: {value}\n"
+        with smtplib.SMTP("smtp.gmail.com", port=587) as connection:
+            connection.starttls()
+            connection.login(EMAIL, PASSWORD)
+            connection.sendmail(
+                from_addr=EMAIL,
+                to_addrs=EMAIL,
+                msg=f"Subject:New message!\n\n{msg}".encode('utf-8')
+            )
+        return render_template("contact.html", request="POST")
+    return render_template("contact.html", request="GET")
 
 
 # strips invalid tags/attributes
