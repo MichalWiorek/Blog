@@ -53,18 +53,18 @@ class PostForm(FlaskForm):
 
 
 @app.route("/")
-def home_page():
+def get_all_posts():
     posts_data = db.session.execute(db.select(BlogPost)).scalars().all()
     return render_template("index.html", posts=posts_data)
 
 
 @app.route("/about")
-def about_page():
+def about():
     return render_template("about.html")
 
 
 @app.route("/contact", methods=["GET", "POST"])
-def contact_page():
+def contact():
     if request.method == "POST":
         data = request.form
         msg = ""
@@ -83,7 +83,7 @@ def contact_page():
 
 
 @app.route("/post/<int:post_id>")
-def post_page(post_id):
+def get_post(post_id):
     post = db.get_or_404(BlogPost, post_id)
     return render_template('post.html', post=post)
 
