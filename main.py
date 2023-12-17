@@ -96,7 +96,7 @@ def add_post():
         data = form.data
         data.pop("submit_button", None)
         data.pop("csrf_token", None)
-        data["date"] = date.today()
+        data["date"] = date.today().strftime("%b %d, %Y")
         data["body"] = strip_invalid_html(data["body"])
         new_post = BlogPost(**data)
         db.session.add(new_post)
