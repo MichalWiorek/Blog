@@ -1,22 +1,45 @@
 import os
-from flask import Flask, render_template, request
-import requests
 import smtplib
+
+from flask import Flask, render_template, request, redirect, url_for
+from flask_ckeditor import CKEditor
+from flask_sqlalchemy import SQLAlchemy
+
 
 PASSWORD = os.getenv("PASSWORD")
 EMAIL = os.getenv("EMAIL")
 
 app = Flask(__name__)
-API_URL = os.getenv('API_URL')
-posts_data = []
-try:
-    posts_data = requests.get(url=API_URL).json()
-except requests.exceptions.RequestException:
-    print("error")
+app.config['SECRET_KEY'] = os.getenv("SECRET_KEY")
+
+# CONNECTION TO DB
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URI', 'sqlite:///posts.db')
+db = SQLAlchemy()
+db.init_app(app)
+
+# INIT CKEDITOR
+app.config['CKEDITOR_PKG_TYPE'] = 'full'
+ckeditor = CKEditor(app)
+
+
+# CONFIGURE TABLE
+class BlogPost(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(250), unique=True, nullable=False)
+    subtitle = db.Column(db.String(250), nullable=False)
+    date = db.Column(db.String(250), nullable=False)
+    body = db.Column(db.Text, nullable=False)
+    author = db.Column(db.String(250), nullable=False)
+    img_url = db.Column(db.String(250), nullable=False)
+
+
+with app.app_context():
+    db.create_all()
 
 
 @app.route("/")
 def home_page():
+    posts_data = db.session.execute(db.select(BlogPost)).scalars().all()
     return render_template("index.html", posts=posts_data)
 
 
@@ -46,10 +69,11 @@ def contact_page():
 
 @app.route("/post/<int:post_id>")
 def post_page(post_id):
-    for post in posts_data:
-        if post["id"] == post_id:
-            return render_template('post.html', post=post)
-    return render_template('post.html', post={"title": "Post not found!"})
+    # post = db.session.execute(db.select(BlogPost).where(BlogPost.id == post_id)).scalar()
+    post = db.get_or_404(BlogPost, post_id)
+    if post:
+        return render_template('post.html', post=post)
+    return redirect(url_for('home_page'))
 
 
 if __name__ == "__main__":
