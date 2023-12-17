@@ -3,12 +3,13 @@ import smtplib
 from datetime import date
 
 import bleach
-from flask import Flask, render_template, request, redirect, url_for, flash
+from flask import Flask, render_template, request, redirect, url_for, flash, abort
 from flask_bootstrap import Bootstrap5
 from flask_ckeditor import CKEditor
-from flask_login import LoginManager, login_user, logout_user, UserMixin
+from flask_login import LoginManager, login_user, logout_user, UserMixin, current_user
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
+from functools import wraps
 
 from forms import PostForm, RegisterForm, LoginForm
 
@@ -35,20 +36,24 @@ ckeditor = CKEditor(app)
 
 # CONFIGURE TABLE
 class BlogPost(db.Model):
+    __tablename__ = "blog_posts"
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(250), unique=True, nullable=False)
     subtitle = db.Column(db.String(250), nullable=False)
     date = db.Column(db.String(250), nullable=False)
     body = db.Column(db.Text, nullable=False)
-    author = db.Column(db.String(250), nullable=False)
+    author = db.relationship("User", back_populates="posts")
+    author_id = db.Column(db.Integer, db.ForeignKey("users.id"))
     img_url = db.Column(db.String(250), nullable=False)
 
 
 class User(db.Model, UserMixin):
+    __tablename__ = "users"
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(250), nullable=False)
     email = db.Column(db.String(250), unique=True, nullable=False)
     password = db.Column(db.String(25), nullable=False)
+    posts = db.relationship("BlogPost", back_populates="author")
 
 
 with app.app_context():
@@ -58,6 +63,17 @@ with app.app_context():
 @login_manager.user_loader
 def load_user(user_id):
     return db.get_or_404(User, user_id)
+
+
+# admin_only decorator
+def admin_only(func):
+    @wraps(func)
+    def wrap(*args, **kwargs):
+        if current_user.is_authenticated and current_user.id == 1:
+            return func(*args, **kwargs)
+        else:
+            abort(403)
+    return wrap
 
 
 @app.route("/register", methods=["GET", "POST"])
@@ -115,8 +131,8 @@ def get_post(post_id):
 
 
 @app.route("/new-post", methods=["GET", "POST"])
+@admin_only
 def add_post():
-    h1_text = "Create Post"
     form = PostForm()
     if form.validate_on_submit():
         data = form.data
@@ -124,26 +140,28 @@ def add_post():
         data.pop("csrf_token", None)
         data["date"] = date.today().strftime("%B %d, %Y")
         data["body"] = strip_invalid_html(data["body"])
+        data["author"] = current_user
         new_post = BlogPost(**data)
         db.session.add(new_post)
         db.session.commit()
         return redirect(url_for('get_all_posts'))
-    return render_template('make-post.html', form=form, h1_text=h1_text)
+    return render_template('make-post.html', form=form)
 
 
 @app.route("/edit-post/<int:post_id>", methods=["GET", "POST"])
+@admin_only
 def edit_post(post_id):
-    h1_text = "Edit Post"
     post = db.get_or_404(BlogPost, post_id)
     form = PostForm(obj=post)
     if form.validate_on_submit():
         form.populate_obj(post)
         db.session.commit()
         return redirect(url_for('get_post', post_id=post_id))
-    return render_template('make-post.html', form=form, h1_text=h1_text)
+    return render_template('make-post.html', form=form, is_edit=True)
 
 
 @app.route("/delete/<int:post_id>")
+@admin_only
 def delete_post(post_id):
     post = db.get_or_404(BlogPost, post_id)
     db.session.delete(post)
