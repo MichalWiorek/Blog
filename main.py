@@ -2,8 +2,11 @@ import os
 import smtplib
 
 from flask import Flask, render_template, request, redirect, url_for
-from flask_ckeditor import CKEditor
+from flask_ckeditor import CKEditor, CKEditorField
 from flask_sqlalchemy import SQLAlchemy
+from flask_wtf import FlaskForm
+from wtforms import StringField, SubmitField
+from wtforms.validators import DataRequired, URL
 
 
 PASSWORD = os.getenv("PASSWORD")
@@ -35,6 +38,15 @@ class BlogPost(db.Model):
 
 with app.app_context():
     db.create_all()
+
+
+class PostForm(FlaskForm):
+    title = StringField('Post Title', validators=[DataRequired()])
+    subtitle = StringField('Subtitle', validators=[DataRequired()])
+    author = StringField('Your Name', validators=[DataRequired()])
+    body = CKEditorField('Post', validators=[DataRequired()])
+    img_url = StringField('Post image URL', validators=[DataRequired(), URL()])
+    submit_button = SubmitField('Submit Post')
 
 
 @app.route("/")
@@ -71,7 +83,6 @@ def contact_page():
 def post_page(post_id):
     post = db.get_or_404(BlogPost, post_id)
     return render_template('post.html', post=post)
-
 
 if __name__ == "__main__":
     app.run(debug=True)
