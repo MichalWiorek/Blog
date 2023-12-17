@@ -3,13 +3,14 @@ import smtplib
 from datetime import date
 
 import bleach
-from flask import Flask, render_template, request, redirect, url_for
+from flask import Flask, render_template, request, redirect, url_for, flash
 from flask_bootstrap import Bootstrap5
 from flask_ckeditor import CKEditor
+from flask_login import LoginManager, login_user, logout_user, UserMixin
 from flask_sqlalchemy import SQLAlchemy
-from forms import PostForm, RegisterForm
 from werkzeug.security import generate_password_hash, check_password_hash
 
+from forms import PostForm, RegisterForm, LoginForm
 
 PASSWORD = os.getenv("PASSWORD")
 EMAIL = os.getenv("EMAIL")
@@ -17,6 +18,10 @@ EMAIL = os.getenv("EMAIL")
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv("SECRET_KEY")
 Bootstrap5(app)
+
+# Login Manager
+login_manager = LoginManager()
+login_manager.init_app(app)
 
 # CONNECTION TO DB
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URI', 'sqlite:///posts.db')
@@ -39,7 +44,7 @@ class BlogPost(db.Model):
     img_url = db.Column(db.String(250), nullable=False)
 
 
-class User(db.Model):
+class User(db.Model, UserMixin):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(250), nullable=False)
     email = db.Column(db.String(250), unique=True, nullable=False)
@@ -50,19 +55,51 @@ with app.app_context():
     db.create_all()
 
 
+@login_manager.user_loader
+def load_user(user_id):
+    return db.get_or_404(User, user_id)
+
+
 @app.route("/register", methods=["GET", "POST"])
 def register_user():
     form = RegisterForm()
     if form.validate_on_submit():
         data = form.data
+        user = db.session.execute(db.select(User).where(User.email == data["email"])).scalar()
+        if user:
+            flash("User with that email already exists. Log in instead.")
+            return redirect(url_for('login'))
         data.pop("submit_button", None)
         data.pop("csrf_token", None)
         data["password"] = generate_password_hash(data["password"])
         new_user = User(**data)
         db.session.add(new_user)
         db.session.commit()
+        login_user(new_user)
         return redirect(url_for('get_all_posts'))
     return render_template('register.html', form=form)
+
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    form = LoginForm()
+    if form.validate_on_submit():
+        user = db.session.execute(db.select(User).where(User.email == form.email.data)).scalar()
+        if not user:
+            flash("There is no user registered with that email.")
+            return render_template('login.html', form=form)
+        if check_password_hash(user.password, form.password.data):
+            login_user(user)
+            return redirect(url_for('get_all_posts'))
+        flash("Password is wrong, try again.")
+        return render_template('login.html', form=form)
+    return render_template('login.html', form=form)
+
+
+@app.route("/logout")
+def logout():
+    logout_user()
+    return redirect(url_for('get_all_posts'))
 
 
 @app.route("/")
