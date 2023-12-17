@@ -105,6 +105,18 @@ def add_post():
     return render_template('make-post.html', form=form, h1_text=h1_text)
 
 
+@app.route("/edit-post/<int:post_id>", methods=["GET", "POST"])
+def edit_post(post_id):
+    h1_text = "Edit Post"
+    post = db.get_or_404(BlogPost, post_id)
+    form = PostForm(obj=post)
+    if form.validate_on_submit():
+        form.populate_obj(post)
+        db.session.commit()
+        return redirect(url_for('post_page', post_id=post_id))
+    return render_template('make-post.html', form=form, h1_text=h1_text)
+
+
 # strips invalid tags/attributes
 def strip_invalid_html(content):
     allowed_tags = ['a', 'abbr', 'acronym', 'address', 'b', 'br', 'div', 'dl', 'dt',
